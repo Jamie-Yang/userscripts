@@ -1,3 +1,3 @@
-# 油猴子脚本
+# Tampermonkey Scripts
 
-[开发文档](https://www.tampermonkey.net/documentation.php?ext=dhdg)
+[Tampermonkey Doc](https://www.tampermonkey.net/documentation.php?ext=dhdg)
