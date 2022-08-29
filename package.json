@@ -1,0 +1,17 @@
+{
+  "name": "tampermonkey-scripts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^8.23.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-userscripts": "^0.2.9",
+    "prettier": "^2.7.1"
+  }
+}
