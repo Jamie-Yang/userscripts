@@ -23,9 +23,12 @@ module.exports = {
   },
 
   rules: {
+    'prefer-promise-reject-errors': 'off',
     'no-use-before-define': ['error', { functions: false }],
     'no-param-reassign': ['error', { props: false }],
     'no-console': 'off',
+    'no-continue': 'off',
+    'no-await-in-loop': 'off',
   },
 
   overrides: [
