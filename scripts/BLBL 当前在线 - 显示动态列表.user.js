@@ -65,41 +65,36 @@ function when(conditionFn, wait = 250, maxWait = 30000) {
 }
 
 function createElement(type, props, children) {
-  var elem = null
+  if (type === 'text') return document.createTextNode(props)
 
-  if (type === 'text') {
-    return document.createTextNode(props)
-  } else {
-    elem = document.createElement(type)
-  }
+  const el = document.createElement(type)
 
-  for (var n in props) {
+  for (const n in props) {
     if (n === 'style') {
-      for (var x in props.style) {
-        elem.style[x] = props.style[x]
+      for (const x in props.style) {
+        el.style[x] = props.style[x]
       }
     } else if (n === 'className') {
-      elem.className = props[n]
+      el.className = props[n]
     } else if (n === 'event') {
-      for (var _x in props.event) {
-        elem.addEventListener(_x, props.event[_x])
+      for (const x in props.event) {
+        el.addEventListener(x, props.event[x])
       }
-    } else {
-      props[n] !== undefined && elem.setAttribute(n, props[n])
+    } else if (n !== undefined) {
+      el.setAttribute(n, props[n])
     }
   }
 
   if (children) {
     if (typeof children === 'string') {
-      elem.innerHTML = children
+      el.innerHTML = children
     } else {
-      for (var i = 0; i < children.length; i++) {
-        if (children[i] != null) {
-          elem.appendChild(children[i])
-        }
-      }
+      children.forEach(function (child) {
+        if (child == null) return
+        el.appendChild(child)
+      })
     }
   }
 
-  return elem
+  return el
 }
