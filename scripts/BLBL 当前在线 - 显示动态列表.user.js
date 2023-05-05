@@ -13,41 +13,22 @@
 })()
 
 function show() {
-  const el = createElement(
-    'div',
-    {
-      style: {
-        position: 'fixed',
-        top: '240px',
-        right: '150px',
-        width: '382px',
-        height: '80vh',
-        zIndex: '1000',
-        padding: '5px 0px',
-        borderRadius: '5px',
-        overflow: 'hidden',
-      },
-    },
-    [
-      createElement('iframe', {
-        src: 'https://t.bilibili.com/pages/nav/index_new#/video',
-        id: 'theFrame',
-        style: { width: '100%', height: '100%', border: '0' },
-      }),
-    ]
-  )
+  const html = `
+    <div style="position: fixed; top: 240px; right: 150px; width: 382px; height: 80vh; z-index: 1000; padding: 5px 0px; border-radius: 5px; overflow: hidden">
+      <iframe src="https://t.bilibili.com/pages/nav/index_new#/video" frameborder="0" style="width: 100%; height: 100%" id="theFrame"></iframe>
+    </div>`
 
-  document.body.appendChild(el)
+  document.body.insertAdjacentHTML('beforeend', html)
 
-  let container = undefined
-  when(function () {
+  let container
+  when(() => {
     try {
       container = document.getElementById('theFrame').contentWindow.document.querySelector('#app .container')
       return !!container
     } catch (e) {
       return false
     }
-  }).then(function () {
+  }).then(() => {
     container.style.maxHeight = '80vh'
   })
 }
@@ -60,41 +41,7 @@ function when(conditionFn, wait = 250, maxWait = 30000) {
       time += wait
       if (time >= maxWait) return reject(new Error('timeout'))
       setTimeout(check, wait)
+      return true
     })()
   })
-}
-
-function createElement(type, props, children) {
-  if (type === 'text') return document.createTextNode(props)
-
-  const el = document.createElement(type)
-
-  for (const n in props) {
-    if (n === 'style') {
-      for (const x in props.style) {
-        el.style[x] = props.style[x]
-      }
-    } else if (n === 'className') {
-      el.className = props[n]
-    } else if (n === 'event') {
-      for (const x in props.event) {
-        el.addEventListener(x, props.event[x])
-      }
-    } else if (n !== undefined) {
-      el.setAttribute(n, props[n])
-    }
-  }
-
-  if (children) {
-    if (typeof children === 'string') {
-      el.innerHTML = children
-    } else {
-      children.forEach(function (child) {
-        if (child == null) return
-        el.appendChild(child)
-      })
-    }
-  }
-
-  return el
 }
