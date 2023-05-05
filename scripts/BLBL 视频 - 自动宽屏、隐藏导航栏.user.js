@@ -15,9 +15,8 @@
 
 // 自动宽屏
 function widePlayer() {
-  let btnWide
-  when(() => (btnWide = document.querySelector('.bpx-player-ctrl-wide'))).then(() => {
-    btnWide.click()
+  when(() => !!document.querySelector('.bpx-player-ctrl-wide')).then(() => {
+    document.querySelector('.bpx-player-ctrl-wide').click()
   })
 }
 
@@ -38,6 +37,7 @@ function when(conditionFn, wait = 250, maxWait = 30000) {
       time += wait
       if (time >= maxWait) return reject(new Error('timeout'))
       setTimeout(check, wait)
+      return true
     })()
   })
 }

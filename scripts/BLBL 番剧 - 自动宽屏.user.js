@@ -14,9 +14,8 @@
 
 // 自动宽屏
 function widePlayer() {
-  let btnWide
-  when(() => (btnWide = document.querySelector('.squirtle-video-widescreen'))).then(() => {
-    btnWide.click()
+  when(() => !!document.querySelector('.squirtle-video-widescreen')).then(() => {
+    document.querySelector('.squirtle-video-widescreen').click()
   })
 }
 
@@ -28,6 +27,7 @@ function when(conditionFn, wait = 250, maxWait = 30000) {
       time += wait
       if (time >= maxWait) return reject(new Error('timeout'))
       setTimeout(check, wait)
+      return true
     })()
   })
 }
