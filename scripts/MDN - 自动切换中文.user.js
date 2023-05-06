@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         MDN 自动切换中文语言
+// @name         MDN - 自动切换中文语言
 // @description  自动将英文版重定向至中文版
 // @version      1.0.0
 // @namespace    --
