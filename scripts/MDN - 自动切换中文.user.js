@@ -10,18 +10,18 @@
 // @run-at       document-start
 // ==/UserScript==
 
-;(function autorun() {
+;(function start() {
   redirect()
 })()
 
 function redirect() {
-  const isEn = /en-US/.test(location.href)
-  const isZh = /zh-CN/.test(location.href)
-  const isChecked = /checked/.test(location.href)
+  const isEn = /en-US/.test(window.location.href)
+  const isZh = /zh-CN/.test(window.location.href)
+  const isChecked = /checked/.test(window.location.href)
 
   if (isEn && !isChecked) {
-    window.location.replace(location.href.replace('en-US', 'zh-CN'))
+    window.window.location.replace(window.location.href.replace('en-US', 'zh-CN'))
   } else if (isZh && document.querySelector('.main-page-content > h1').innerText === 'Page not found') {
-    window.location.replace(location.href.replace('zh-CN', 'en-US') + '?checked')
+    window.window.location.replace(`${window.location.href.replace('zh-CN', 'en-US')}?checked`)
   }
 }

@@ -9,7 +9,7 @@
 // @grant        GM_addStyle
 // ==/UserScript==
 
-;(function autorun() {
+;(function start() {
   highQualityImage()
   wideScreen()
 })()

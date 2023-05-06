@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         BLBL 当前在线 - 显示动态列表
+// @name         BLBL - 当前在线 - 显示动态列表
 // @description  当前在线页展示动态列表
 // @version      1.0.0
 // @namespace    --
@@ -8,7 +8,7 @@
 // @match        https://www.bilibili.com/video/online.html
 // ==/UserScript==
 
-;(function autorun() {
+;(function start() {
   show()
 })()
 
