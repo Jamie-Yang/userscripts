@@ -27,7 +27,7 @@ function highQualityImage() {
 
 function wideScreen() {
   const css = `@media screen and (min-width:750px) {
-      :root { --inject-page-width:min(90vw, 1150px) }
+      :root { --inject-page-width:min(90vw, 1050px) }
       .inject-widescreen-loose-js { --inject-page-width:90vw }
       .rich_media_area_primary_inner { margin-left:auto; margin-right:auto; max-width:var(--inject-page-width) !important }
       #js_pc_qr_code .qr_code_pc { opacity:.1; position:fixed; right:3vw; top:25vh }
