@@ -1,0 +1,410 @@
+// ==UserScript==
+// @name         BLBL - 动态抽奖自动化
+// @namespace    http://tampermonkey.net/
+// @version      1.0.0
+// @description  打开归纳整理互动抽奖的专栏，右下角「抽」按钮
+// @author       Jamie
+// @match        https://www.bilibili.com/read/cv*
+// @match        https://t.bilibili.com/*
+// @match        https://message.bilibili.com/*
+// @match        https://space.bilibili.com/*/dynamic
+// @match        https://www.bilibili.com/opus/*
+// @match        https://www.bilibili.com/404
+// @grant        unsafeWindow
+// @grant        GM_openInTab
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_deleteValue
+// @grant        GM_addStyle
+// @icon         http://bilibili.com/favicon.ico
+// @license      MIT
+// ==/UserScript==
+
+// 数据存储
+const store = (function Store() {
+  const name = 'BLBL-LOTTERY-STORE'
+
+  // 设置项
+  const settings = {
+    interval: 500, // 抽奖间隔时间
+    stepInterval: 500, // 步骤间隔时间
+  }
+
+  // 共享数据
+  const shared = {
+    dynamicId: undefined, // 当前处理动态id
+    followGroupId: undefined, // 抽奖关注分组
+  }
+
+  const current = { ...settings, ...shared, ...GM_getValue(name) }
+
+  return new Proxy(current, {
+    set(target, key, value) {
+      if (!(key in current)) {
+        throw new Error(`[store] 未知设置项 "${key}"`)
+      }
+      target[key] = value
+      GM_setValue(name, target)
+      return true
+    },
+
+    get(target, key) {
+      return target[key]
+    },
+  })
+})()
+
+;(async function run() {
+  if (window.location.href.startsWith('https://www.bilibili.com/read/cv')) {
+    setupReadCV()
+  }
+})()
+
+// 等待条件成立
+function when(conditionFn, wait = 250, maxWait = 30000) {
+  let time = 0
+  return new Promise((resolve, reject) => {
+    ;(function check() {
+      if (conditionFn()) return resolve()
+      time += wait
+      if (time >= maxWait) return reject(new Error('timeout'))
+      setTimeout(check, wait)
+      return null
+    })()
+  })
+}
+
+// 延时
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+// 创建元素
+function createElement(type, props, children) {
+  if (type === 'text') return document.createTextNode(props)
+
+  const el = document.createElement(type)
+
+  Object.keys(props).forEach((n) => {
+    if (n === 'style') {
+      Object.keys(props.style).forEach((x) => {
+        el.style[x] = props.style[x]
+      })
+    } else if (n === 'className') {
+      el.className = props[n]
+    } else if (n === 'event') {
+      Object.keys(props.event).forEach((x) => {
+        el.addEventListener(x, props.event[x])
+      })
+    } else if (n !== undefined) {
+      el.setAttribute(n, props[n])
+    }
+  })
+
+  if (children) {
+    if (typeof children === 'string') {
+      el.innerHTML = children
+    } else {
+      children.forEach((child) => {
+        if (child == null) return
+        el.appendChild(child)
+      })
+    }
+  }
+
+  return el
+}
+
+// 网络请求，封装 XMLHttpRequest
+function request(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open(options.method || 'GET', url)
+    xhr.withCredentials = true
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const res = JSON.parse(xhr.responseText)
+        if (res.code === 0) return resolve(res.data)
+        return reject(res)
+      }
+      return reject({ message: xhr.statusText })
+    }
+    xhr.onerror = () => reject({ message: xhr.statusText })
+    xhr.send()
+  })
+}
+
+// 获取URL参数，使用 new URL()
+function getUrlParam(key, url = window.location.href) {
+  const urlObj = new URL(url)
+  return urlObj.searchParams.get(key)
+}
+
+// 获取 Cookie
+function getCookie(name) {
+  const reg = new RegExp(`(^| )${name}=([^;]*)(;|$)`)
+  const arr = document.cookie.match(reg)
+  if (arr) return window.decodeURIComponent(arr[2])
+  return null
+}
+
+// 获取动态链接的动态id
+function getDynamicIdFromUrl(url) {
+  const matches = url.match(/\d+/g)
+  return matches ? matches[0] : null
+}
+
+// 配置专栏页面：抽奖按钮，抽奖链接解析
+function setupReadCV() {
+  start()
+
+  // 专栏页样式
+  function addStyle() {
+    const style = `
+    .lottery-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 62px;
+      height: 62px;
+      margin-bottom: 4px;
+      background: #fff;
+      border: 0;
+      color: #505050;
+      cursor: pointer;
+    }
+    .lottery-button:hover {
+      color: #00a1d6;
+    }
+    .lottery-button .label {
+      font-size: 28px;
+      line-height: 1;
+    }
+    .lottery-button .count {
+      font-size: 12px;
+      margin-top: 4px;
+      line-height: 1;
+    }
+    
+    .lottery-link-status {
+      display: inline-flex;
+      align-items: center;
+      margin: 0 4px;
+      padding: 4px 5px;
+      border-width: 1px;
+      border-style: solid;
+      border-radius: 6px;
+      font-size: 13px;
+      line-height: 1;
+      vertical-align: text-bottom;
+      user-select: none;
+      cursor: pointer;
+      color: #666;
+      background: #fafafa;
+      border-color: #d9d9d9;
+    }
+    .lottery-link-status input {
+      margin: 0;
+    }
+    .lottery-link-status span {
+      margin-left: 4px;
+    }
+    .lottery-link-status.execute-include {
+      color: #0958d9;
+      background: #e6f4ff;
+      border-color: #91caff;
+    }
+    .lottery-link-status.status-waiting {
+      color: #d46b08;
+      background: #fff7e6;
+      border-color: #ffd591;
+    }
+    .lottery-link-status.status-running {
+      color: #0958d9;
+      background: #e6f4ff;
+      border-color: #91caff;
+    }
+    .lottery-link-status.status-done {
+      color: #389e0d;
+      background: #f6ffed;
+      border-color: #b7eb8f;
+    }
+    .lottery-link-status.status-fail {
+      color: #cf1322;
+      background: #fff1f0;
+      border-color: #ffa39e;
+    }
+
+    .lottery-link-status.status-running {
+      color: #0958d9;
+      background: #e6f4ff;
+      border-color: #91caff;
+    }
+    .lottery-link-status.status-done {
+      color: #389e0d;
+      background: #f6ffed;
+      border-color: #b7eb8f;
+    }
+    .lottery-link-status.status-fail {
+      color: #cf1322;
+      background: #fff1f0;
+      border-color: #ffa39e;
+    }
+    `
+
+    GM_addStyle(style)
+  }
+
+  function start() {
+    when(() => !!document.querySelector('.side-toolbar')).then(() => {
+      addStyle()
+      initLotteryButton()
+      markLotteryLink()
+      updateLotteryButtonCount()
+    })
+  }
+
+  // 初始化抽奖按钮
+  function initLotteryButton() {
+    const html = `
+    <button class="lottery-button" id="lottery-button">
+      <span class="label">抽</span>
+      <span class="count" id="lottery-button-count">0</span>
+    </button>`
+
+    document.querySelector('.side-toolbar').insertAdjacentHTML('afterbegin', html)
+    document.querySelector('#lottery-button').addEventListener('click', startLottery)
+  }
+
+  // 更新抽奖按钮上的数量
+  function updateLotteryButtonCount() {
+    const count = document.querySelectorAll('.article-content .lottery-link-status input:checked').length
+    document.querySelector('#lottery-button-count').innerText = count
+  }
+
+  // 标记抽奖链接，在链接后插入一个勾选框
+  function markLotteryLink() {
+    const links = document.querySelectorAll('.article-content a[href^="https://t.bilibili.com/"], .article-content a[href^="https://www.bilibili.com/opus/"]')
+
+    links.forEach((link) => {
+      const checkbox = createLotteryCheckbox(link)
+      link.insertAdjacentElement('afterend', checkbox)
+    })
+  }
+
+  // 创建抽奖勾选框
+  function createLotteryCheckbox(link) {
+    const checkbox = createElement('input', {
+      type: 'checkbox',
+      'data-dynamic-id': getDynamicIdFromUrl(link.href),
+      event: {
+        change() {
+          // 切换状态
+          this.parentNode.classList.toggle('execute-include')
+          this.parentNode.querySelector('span').innerText = this.checked ? '已选择' : '未选择'
+
+          updateLotteryButtonCount()
+        },
+      },
+    })
+    const label = createElement('label', { className: 'lottery-link-status' }, [checkbox, createElement('span', {}, '未选择')])
+    return label
+  }
+
+  // 变更checkbox的抽奖状态：等待、进行中、已完成、失败
+  function changeCheckboxStatus(checkbox, status) {
+    const textMap = {
+      waiting: '待抽奖',
+      running: '抽奖中',
+      done: '抽奖完成',
+      fail: '抽奖失败',
+    }
+    checkbox.parentNode.querySelector('span').innerText = textMap[status]
+    checkbox.parentNode.className = `lottery-link-status status-${status}`
+  }
+
+  // 拼接动态链接
+  function makeDynamicUrl(id) {
+    return `https://www.bilibili.com/opus/${id}?auto=true`
+  }
+
+  // 开始抽奖
+  function startLottery() {
+    const checkboxes = document.querySelectorAll('.article-content .lottery-link-status input')
+
+    checkboxes.forEach((checkbox) => {
+      checkbox.disabled = true
+      if (checkbox.checked) {
+        changeCheckboxStatus(checkbox, 'waiting')
+      }
+    })
+
+    document.addEventListener('visibilitychange', visibilitychangeHandler, false)
+
+    // createFollowGroup().then(executeNext)
+    executeNext()
+  }
+
+  // 执行下一个抽奖
+  function executeNext() {
+    const checkbox = document.querySelector(`.article-content .lottery-link-status.status-waiting input`)
+    if (!checkbox) {
+      finishLottery()
+      return
+    }
+    const id = checkbox.getAttribute('data-dynamic-id')
+
+    changeCheckboxStatus(checkbox, 'running')
+
+    GM_openInTab(makeDynamicUrl(id), { active: true, setParent: true })
+  }
+
+  // 标记上一个抽奖为已完成
+  function markPreviousDone() {
+    const preDynamicId = GM_getValue('BIBI_LOTTERY_DYNAMIC_ID')
+    if (preDynamicId) {
+      GM_deleteValue('BIBI_LOTTERY_DYNAMIC_ID')
+    }
+    const checkbox = document.querySelector(`.article-content .lottery-link-status.status-running input[data-dynamic-id="${preDynamicId}"]`)
+    if (checkbox) {
+      changeCheckboxStatus(checkbox, 'done')
+    }
+  }
+
+  // 监听页面可见性变化
+  function visibilitychangeHandler() {
+    if (document.visibilityState === 'visible') {
+      markPreviousDone()
+      setTimeout(executeNext, store.interval)
+    }
+  }
+
+  function finishLottery() {
+    // 移除事件监听
+    document.removeEventListener('visibilitychange', visibilitychangeHandler, false)
+  }
+
+  // 创建抽奖关注分组
+  function createFollowGroup(groupName = '抽奖') {
+    return request(`https://api.bilibili.com/x/relation/tag/create?tag=${groupName}&jsonp=jsonp&csrf=${getCookie('bili_jct')}`, {
+      method: 'POST',
+    })
+      .then((data) => {
+        const { tagid } = data
+        if (tagid == null) throw new Error('[createFollowGroup] 创建抽奖关注分组 失败')
+        console.log(`[createFollowGroup] 抽奖关注分组: ${tagid}`)
+        store.followGroupId = tagid
+      })
+      .catch((err) => {
+        if (err?.code === 22106) {
+          console.log(`[createFollowGroup] 抽奖关注分组已存在`)
+          return Promise.resolve()
+        }
+        console.log('[createFollowGroup] 创建抽奖关注分组 失败')
+        throw err
+      })
+  }
+}
