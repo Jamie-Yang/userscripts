@@ -57,6 +57,8 @@ const store = (function Store() {
 ;(async function run() {
   if (window.location.href.startsWith('https://www.bilibili.com/read/cv')) {
     setupReadCV()
+  } else if (window.location.href.startsWith('https://www.bilibili.com/opus/')) {
+    setupOpus()
   }
 })()
 
@@ -406,5 +408,149 @@ function setupReadCV() {
         console.log('[createFollowGroup] 创建抽奖关注分组 失败')
         throw err
       })
+  }
+}
+
+// 配置动态页面：点赞、转发、关注、添加到分组
+function setupOpus() {
+  start()
+
+  function start() {
+    if (getUrlParam('auto') !== 'true') {
+      // 非自动抽奖，不继续执行
+      return
+    }
+
+    when(() => !!document.querySelector('.side-toolbar__action.like')) // 页面加载完成
+      .then(checkLiked) // 检查是否已点赞
+      .then(() => sleep(store.stepInterval))
+      .then(triggerLikeButton) // 触发点赞按钮
+      .then(() => sleep(store.stepInterval))
+      .then(getUpperId) // 获取 UP主 id
+      .then(followUpper) // 关注 UP主
+      // .then(() => sleep(store.stepInterval))
+      // .then(addUpperToGroup) // 添加 UP主到抽奖分组
+      .then(() => sleep(store.stepInterval))
+      .then(triggerForwardButton) // 触发转发按钮
+      .then(() => sleep(store.stepInterval))
+      .then(pasteForwardComment) // 粘贴转发评论
+      .then(() => sleep(store.stepInterval))
+      .then(triggerEmojiButton) // 触发表情按钮
+      .then(() => sleep(store.stepInterval))
+      .then(triggerPublishButton) // 触发发布按钮
+      .then(() => {
+        console.log('抽奖完成')
+
+        GM_setValue('BIBI_LOTTERY_DYNAMIC_ID', getDynamicIdFromUrl(window.location.href))
+
+        setTimeout(window.close, store.interval)
+      })
+      .catch((err) => {
+        console.log('抽奖失败', err)
+
+        setTimeout(window.close, store.interval)
+      })
+  }
+
+  // 检查是否已点赞，如果已点赞则表示已经处理过
+  function checkLiked() {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector('.side-toolbar__action.like.is-active') != null) {
+        reject(new Error('已点赞，即将关闭页面'))
+      }
+      resolve('ok')
+    })
+  }
+
+  // 触发点赞按钮
+  function triggerLikeButton() {
+    document.querySelector('.side-toolbar__action.like').click()
+  }
+
+  // 获取 UP主 id
+  function getUpperId() {
+    const dynamicId = getDynamicIdFromUrl(window.location.href)
+
+    return request(`https://api.bilibili.com/x/polymer/web-dynamic/v1/detail?timezone_offset=-480&id=${dynamicId}`)
+      .then((data) => {
+        const mid = data?.item?.modules?.module_author?.mid
+        if (mid == null) throw new Error('[getUpperId] 获取 UP主 id 失败')
+        console.log(`[getUpperId] UP主 id: ${mid}`)
+        return mid
+      })
+      .catch((err) => {
+        console.log('[getUpperId] 获取 UP主 id 失败')
+        throw err
+      })
+  }
+
+  // 关注 UP主
+  function followUpper(upperId) {
+    return request(`https://api.bilibili.com/x/relation/modify?act=1&fid=${upperId}&spmid=444.42&re_src=0&csrf=${getCookie('bili_jct')}`, {
+      method: 'POST',
+    })
+      .then(() => {
+        console.log('[followUpper] 关注 UP主 成功')
+        return upperId
+      })
+      .catch((err) => {
+        console.log('[followUpper] 关注 UP主 失败')
+        throw err
+      })
+  }
+
+  // 添加到[抽奖]分组
+  function addUpperToGroup(upperId) {
+    return request(`https://api.bilibili.com/x/relation/tags/addUsers?cross_domain=true&fids=${upperId}&tagids=${store.followGroupId}&csrf=${getCookie('bili_jct')}`, {
+      method: 'POST',
+    })
+      .then(() => {
+        console.log('[addUpperToGroup] 关注分组 成功')
+      })
+      .catch((err) => {
+        console.log('[addUpperToGroup] 关注分组 失败')
+        throw err
+      })
+  }
+
+  // 触发转发按钮
+  async function triggerForwardButton() {
+    document.querySelector('.side-toolbar__action.forward').click()
+    await when(() => !!document.querySelector('.bili-rich-textarea__inner'))
+  }
+
+  // 粘贴转发评论内容
+  async function pasteForwardComment() {
+    const textarea = document.querySelector('.bili-rich-textarea__inner')
+    const comment = getForwardComment()
+    const inputEvent = new InputEvent('input', { inputType: 'insertText', data: comment, dataTransfer: null, isComposing: false })
+    textarea.dispatchEvent(inputEvent)
+    await sleep(500) // 等待输入完成，避免输入失效
+  }
+
+  // 获取随机转发评论内容
+  function getForwardComment() {
+    const CommentDict = ['UPUP', '支持UP', '中中', '好奖啊', '冲冲冲', '来个好运气', '好耶']
+    return CommentDict[Math.floor(Math.random() * CommentDict.length)]
+  }
+
+  // 触发表情按钮，输入两次欢呼表情
+  async function triggerEmojiButton() {
+    const emojiButton = document.querySelector('.bili-dyn-share-publishing__tools__item.emoji')
+    emojiButton.click()
+
+    const getCheerEmoji = () => document.querySelectorAll('.bili-emoji__list__item.small')[13]
+    await when(() => !!getCheerEmoji())
+    getCheerEmoji().click()
+    await sleep(500)
+    getCheerEmoji().click()
+  }
+
+  // 触发发布按钮
+  async function triggerPublishButton() {
+    const publishButton = document.querySelector('.bili-dyn-share-publishing__action.launcher')
+    publishButton.click()
+
+    await when(() => !!document.querySelector('.bili-dyn-share__done'))
   }
 }
