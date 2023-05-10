@@ -59,6 +59,8 @@ const store = (function Store() {
     setupReadCV()
   } else if (window.location.href.startsWith('https://www.bilibili.com/opus/')) {
     setupOpus()
+  } else if (window.location.href.startsWith('https://space.bilibili.com/')) {
+    setupSpace()
   }
 })()
 
@@ -553,4 +555,146 @@ function setupOpus() {
 
     await when(() => !!document.querySelector('.bili-dyn-share__done'))
   }
+}
+
+// 配置空间页面：删除已开奖的转发动态、取关 UP主
+function setupSpace() {
+  function addStyle() {
+    const style = `
+    .start-button {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 30px;
+      padding: 0 10px;
+      margin-bottom: 4px;
+      background: #fff;
+      border: 0;
+      border-radius: 6px;
+      line-height: 30px;
+      font-size: 14px;
+      color: #222;
+      cursor: pointer;
+    }
+    .start-button:hover {
+      color: #00a1d6;
+    }
+    `
+
+    GM_addStyle(style)
+  }
+
+  // 初始化抽奖按钮
+  function initButton() {
+    const button = createElement(
+      'button',
+      {
+        class: 'start-button',
+        event: {
+          click: () => {
+            scrollUntilNoMore().then(deleteDynamic)
+          },
+        },
+      },
+      '删除已开奖'
+    )
+
+    document.body.appendChild(button)
+  }
+
+  // 滚动页面，直到存在 .bili-dyn-list-no-more 元素
+  async function scrollUntilNoMore() {
+    const noMoreElement = document.querySelector('.bili-dyn-list-no-more')
+    if (noMoreElement != null) return
+
+    window.scrollTo(0, document.documentElement.scrollHeight)
+    await sleep(500)
+    await scrollUntilNoMore()
+  }
+
+  async function deleteDynamic() {
+    const dynamicList = Array.from(document.querySelectorAll('.bili-dyn-list__item'))
+
+    // eslint-disable-next-line no-restricted-syntax
+    for (const item of dynamicList) {
+      console.log('删除动态开始')
+      item.scrollIntoView({ behavior: 'smooth' })
+      await sleep(500)
+
+      // 官方互动抽奖
+      const lottery = item.querySelector('.bili-dyn-content__orig.reference .bili-rich-text-module.lottery')
+      if (lottery == null) continue
+
+      // 打开互动抽奖详情弹窗
+      lottery.click()
+
+      // 等待弹窗加载完成
+      await when(() => !!document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.result-list'))
+      console.log('弹窗加载完成', document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.result-list'))
+      await sleep(500)
+
+      const hasWinner = document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.prize-winner-block')
+      console.log('是否开奖', !hasWinner)
+
+      if (hasWinner) {
+        const userName = document.querySelector('#h-name').innerText
+        const usernameList = document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelectorAll('.result-user .user-name')
+        const isWinner = !![].find.call(usernameList, (el) => el.innerText === userName)
+        console.log('是否中奖', isWinner)
+
+        if (isWinner) {
+          return
+        }
+      }
+
+      const popupCloseButton = document.querySelector('.bili-popup__header__close')
+      console.log('关闭按钮', popupCloseButton)
+      popupCloseButton.click()
+      // await sleep(500)
+      document.body.removeChild(document.querySelector('.bili-popup'))
+
+      // 未开奖，跳过
+      if (!hasWinner) continue
+
+      console.log('删除动态中')
+
+      // 取关UP主，触发鼠标移入事件
+      const upper = item.querySelector('.dyn-orig-author__name')
+      upper.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
+      upper.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+
+      // UP主信息弹窗展示
+      await when(() => document.querySelector('.bili-user-profile')?.style?.display === '')
+      // await sleep(500)
+
+      const followButton = document.querySelector('.bili-user-profile-view__info__button.follow') // 关注按钮
+      if (followButton.classList.contains('checked')) {
+        // 已关注，取消关注
+        followButton.click()
+      }
+      document.querySelector('.bili-user-profile').style.display = 'none'
+      // await sleep(500)
+
+      // 删除动态
+      const deleteButton = item.querySelector('[data-type="THREE_POINT_DELETE"]')
+      deleteButton.click()
+      // await sleep(500)
+
+      await when(() => !!document.querySelector('.bili-modal__button.confirm'))
+      // await sleep(500)
+
+      const confirmButton = document.querySelector('.bili-modal__button.confirm')
+      confirmButton.click()
+      await sleep(500)
+
+      console.log('删除动态成功')
+    }
+  }
+
+  addStyle()
+  initButton()
 }
