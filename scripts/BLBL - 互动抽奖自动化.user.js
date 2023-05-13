@@ -4,6 +4,7 @@
 // @version      1.0.0
 // @description  打开归纳整理互动抽奖的专栏，右下角「抽」按钮
 // @author       Jamie
+// @match        https://www.bilibili.com/
 // @match        https://www.bilibili.com/read/cv*
 // @match        https://t.bilibili.com/*
 // @match        https://message.bilibili.com/*
@@ -20,12 +21,34 @@
 // @license      MIT
 // ==/UserScript==
 
+const toast = (function toast() {
+  const container = document.createElement('div')
+  container.className = 'j-toast-container'
+  document.body.appendChild(container)
+
+  return function show(text) {
+    const el = document.createElement('div')
+    el.className = 'j-toast'
+    document.querySelector('.j-toast-container').appendChild(el)
+
+    el.innerText = text
+    setTimeout(() => {
+      el.classList.add('hidden')
+      el.addEventListener('transitionend', () => {
+        el.remove()
+      })
+    }, 2000)
+  }
+})()
+
 // 数据存储
 const store = (function Store() {
   const name = 'BLBL-LOTTERY-STORE'
 
   // 设置项
   const settings = {
+    auto: false, // 自动抽奖
+    collectorId: '5536630', // 归纳整理抽奖专栏的UP主id
     interval: 500, // 抽奖间隔时间
     stepInterval: 500, // 步骤间隔时间
   }
@@ -55,7 +78,9 @@ const store = (function Store() {
 })()
 
 ;(async function run() {
-  if (window.location.href.startsWith('https://www.bilibili.com/read/cv')) {
+  if (window.location.href === 'https://www.bilibili.com/') {
+    setupIndex()
+  } else if (window.location.href.startsWith('https://www.bilibili.com/read/cv')) {
     setupReadCV()
   } else if (window.location.href.startsWith('https://www.bilibili.com/opus/')) {
     setupOpus()
@@ -70,6 +95,21 @@ function when(conditionFn, wait = 250, maxWait = 30000) {
   return new Promise((resolve, reject) => {
     ;(function check() {
       if (conditionFn()) return resolve()
+      time += wait
+      if (time >= maxWait) return reject(new Error('timeout'))
+      setTimeout(check, wait)
+      return null
+    })()
+  })
+}
+
+// 等待元素出现，返回元素
+function waitElement(selector, wait = 250, maxWait = 30000) {
+  let time = 0
+  return new Promise((resolve, reject) => {
+    ;(function check() {
+      const el = document.querySelector(selector)
+      if (el) return resolve(el)
       time += wait
       if (time >= maxWait) return reject(new Error('timeout'))
       setTimeout(check, wait)
@@ -158,6 +198,40 @@ function getCookie(name) {
 function getDynamicIdFromUrl(url) {
   const matches = url.match(/\d+/g)
   return matches ? matches[0] : null
+}
+
+// 配置主页
+function setupIndex() {
+  // 初始化抽奖按钮
+  ;(function initButton() {
+    const button = createElement(
+      'button',
+      {
+        class: 'j-index-main-button',
+        event: {
+          click: startAutoLottery,
+        },
+      },
+      '抽'
+    )
+
+    waitElement('.palette-button-wrap').then((el) => {
+      el.appendChild(button)
+    })
+  })()
+
+  function startAutoLottery() {
+    store.auto = true
+
+    // 跳转个人空间动态页，删除之前抽奖转发动态
+    window.open(`https://space.bilibili.com/${getUserId()}/dynamic`, '_blank')
+  }
+
+  function getUserId() {
+    const link = document.querySelector('.header-avatar-wrap--container .header-entry-mini').href
+    const matches = link.match(/\d+/g)
+    return matches ? matches[0] : undefined
+  }
 }
 
 // 配置专栏页面：抽奖按钮，抽奖链接解析
@@ -559,6 +633,13 @@ function setupOpus() {
 
 // 配置空间页面：删除已开奖的转发动态、取关 UP主
 function setupSpace() {
+  const start = () => scrollUntilNoMore().then(deleteDynamic)
+
+  // 自动执行流程
+  if (store.auto) {
+    start()
+  }
+
   function addStyle() {
     const style = `
     .start-button {
@@ -595,9 +676,7 @@ function setupSpace() {
       {
         class: 'start-button',
         event: {
-          click: () => {
-            scrollUntilNoMore().then(deleteDynamic)
-          },
+          click: start,
         },
       },
       '删除已开奖'
@@ -617,19 +696,20 @@ function setupSpace() {
   }
 
   async function deleteDynamic() {
-    const dynamicList = Array.from(document.querySelectorAll('.bili-dyn-list__item'))
+    // 官方互动抽奖动态列表
+    const lotteryDynamicList = Array.from(document.querySelectorAll('.bili-dyn-list__item')).filter(
+      (item) => item.querySelector('.bili-dyn-content__orig.reference .bili-rich-text-module.lottery') != null
+    )
 
     // eslint-disable-next-line no-restricted-syntax
-    for (const item of dynamicList) {
+    for (const [index, item] of lotteryDynamicList.entries()) {
       console.log('删除动态开始')
+      toast(`删除动态开始，进度：${index + 1}/${lotteryDynamicList.length}`)
       item.scrollIntoView({ behavior: 'smooth' })
       await sleep(500)
 
-      // 官方互动抽奖
-      const lottery = item.querySelector('.bili-dyn-content__orig.reference .bili-rich-text-module.lottery')
-      if (lottery == null) continue
-
       // 打开互动抽奖详情弹窗
+      const lottery = item.querySelector('.bili-dyn-content__orig.reference .bili-rich-text-module.lottery')
       lottery.click()
 
       // 等待弹窗加载完成
@@ -638,7 +718,7 @@ function setupSpace() {
       await sleep(500)
 
       const hasWinner = document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.prize-winner-block')
-      console.log('是否开奖', !hasWinner)
+      toast(`是否开奖：${hasWinner ? '已开奖' : '未开奖'}`)
 
       if (hasWinner) {
         const userName = document.querySelector('#h-name').innerText
@@ -647,6 +727,7 @@ function setupSpace() {
         console.log('是否中奖', isWinner)
 
         if (isWinner) {
+          toast('🎉🎉🎉🎉🎉🎉🎉🎉 恭喜你中奖了')
           return
         }
       }
@@ -692,9 +773,67 @@ function setupSpace() {
       await sleep(500)
 
       console.log('删除动态成功')
+
+      // if (index === lotteryDynamicList.length - 1) {
+      //   console.log('删除动态完成')
+      // }
     }
   }
 
   addStyle()
   initButton()
 }
+
+;(function addCommonStyle() {
+  const style = `
+    .j-toast-container {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 999999;
+    }
+    .j-toast {
+      box-sizing: border-box;
+      height: 40px;
+      padding: 0 20px;
+      background-color: rgba(0, 0, 0, .8);
+      color: #fff;
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 40px;
+      overflow: hidden;
+      transition: .6s;
+      margin-top: 5px;
+    }
+    .j-toast.hidden {
+      opacity: 0;
+      margin-top: -40px;
+    }
+    
+    .j-index-main-button {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 16px;
+      color: #18191c;
+      border: 1px solid #e3e5e7;
+      background-color: #ffffff;
+      margin-top: 12px;
+      transform-origin: center;
+      transition: .2s;
+      cursor: pointer;
+    }
+    .j-index-main-button:hover {
+      background-color: #e3e5e7;
+    }
+  `
+
+  GM_addStyle(style)
+})()
