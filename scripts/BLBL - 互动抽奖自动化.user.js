@@ -29,15 +29,19 @@ const toast = (function toast() {
   return function show(text) {
     const el = document.createElement('div')
     el.className = 'j-toast'
+    el.innerText = text
     document.querySelector('.j-toast-container').appendChild(el)
 
-    el.innerText = text
+    setTimeout(() => {
+      el.classList.add('show')
+    }, 100)
+
     setTimeout(() => {
       el.classList.add('hidden')
       el.addEventListener('transitionend', () => {
         el.remove()
       })
-    }, 2000)
+    }, 2500)
   }
 })()
 
@@ -632,12 +636,23 @@ function setupOpus() {
 }
 
 // 配置空间页面：删除已开奖的转发动态、取关 UP主
-function setupSpace() {
+async function setupSpace() {
+  const userId = await getUserId()
+  if (!window.location.href.includes(userId)) return
+
   const start = () => scrollUntilNoMore().then(deleteDynamic)
 
   // 自动执行流程
   if (store.auto) {
     start()
+  }
+
+  function getUserId() {
+    return waitElement('.header-avatar-wrap--container .header-entry-mini').then((el) => {
+      const link = el.href
+      const matches = link.match(/\d+/g)
+      return matches ? matches[0] : undefined
+    })
   }
 
   function addStyle() {
@@ -671,16 +686,7 @@ function setupSpace() {
 
   // 初始化抽奖按钮
   function initButton() {
-    const button = createElement(
-      'button',
-      {
-        class: 'start-button',
-        event: {
-          click: start,
-        },
-      },
-      '删除已开奖'
-    )
+    const button = createElement('button', { class: 'start-button', event: { click: start } }, '删除已开奖')
 
     document.body.appendChild(button)
   }
@@ -701,10 +707,12 @@ function setupSpace() {
       (item) => item.querySelector('.bili-dyn-content__orig.reference .bili-rich-text-module.lottery') != null
     )
 
+    toast(`共有 ${lotteryDynamicList.length} 条动态`)
+    await sleep(500)
+
     // eslint-disable-next-line no-restricted-syntax
     for (const [index, item] of lotteryDynamicList.entries()) {
-      console.log('删除动态开始')
-      toast(`删除动态开始，进度：${index + 1}/${lotteryDynamicList.length}`)
+      toast(`[${index + 1}/${lotteryDynamicList.length}] 开始检查开奖`)
       item.scrollIntoView({ behavior: 'smooth' })
       await sleep(500)
 
@@ -718,7 +726,7 @@ function setupSpace() {
       await sleep(500)
 
       const hasWinner = document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.prize-winner-block')
-      toast(`是否开奖：${hasWinner ? '已开奖' : '未开奖'}`)
+      toast(`[${index + 1}/${lotteryDynamicList.length}] ${hasWinner ? '已开奖' : '未开奖，跳过'}`)
 
       if (hasWinner) {
         const userName = document.querySelector('#h-name').innerText
@@ -728,7 +736,7 @@ function setupSpace() {
 
         if (isWinner) {
           toast('🎉🎉🎉🎉🎉🎉🎉🎉 恭喜你中奖了')
-          return
+          continue
         }
       }
 
@@ -739,9 +747,15 @@ function setupSpace() {
       document.body.removeChild(document.querySelector('.bili-popup'))
 
       // 未开奖，跳过
-      if (!hasWinner) continue
-
-      console.log('删除动态中')
+      if (!hasWinner) {
+        if (index === lotteryDynamicList.length - 1) {
+          toast('检查开奖完成 ✅')
+          await sleep(1000)
+          handleFinish()
+        }
+        await sleep(500)
+        continue
+      }
 
       // 取关UP主，触发鼠标移入事件
       const upper = item.querySelector('.dyn-orig-author__name')
@@ -758,6 +772,7 @@ function setupSpace() {
         followButton.click()
       }
       document.querySelector('.bili-user-profile').style.display = 'none'
+      toast(`[${index + 1}/${lotteryDynamicList.length}] UP主已取关`)
       // await sleep(500)
 
       // 删除动态
@@ -770,13 +785,21 @@ function setupSpace() {
 
       const confirmButton = document.querySelector('.bili-modal__button.confirm')
       confirmButton.click()
+      toast(`[${index + 1}/${lotteryDynamicList.length}] 删除动态成功`)
       await sleep(500)
 
-      console.log('删除动态成功')
+      if (index === lotteryDynamicList.length - 1) {
+        toast('删除开奖完成')
+        await sleep(1000)
+        handleFinish()
+        return
+      }
+    }
+  }
 
-      // if (index === lotteryDynamicList.length - 1) {
-      //   console.log('删除动态完成')
-      // }
+  function handleFinish() {
+    if (store.auto) {
+      window.close()
     }
   }
 
@@ -805,12 +828,17 @@ function setupSpace() {
       font-size: 14px;
       line-height: 40px;
       overflow: hidden;
-      transition: .6s;
       margin-top: 5px;
+      transform: translateX(120%);
+    }
+    .j-toast.show {
+      transform: translateX(0);
+      transition: .3s;
     }
     .j-toast.hidden {
       opacity: 0;
       margin-top: -40px;
+      transition: .6s;
     }
     
     .j-index-main-button {
