@@ -519,13 +519,14 @@ function setupOpus() {
       .then(() => sleep(store.stepInterval))
       .then(triggerPublishButton) // 触发发布按钮
       .then(() => {
-        console.log('抽奖完成')
+        toast('抽奖成功')
 
         GM_setValue('BIBI_LOTTERY_DYNAMIC_ID', getDynamicIdFromUrl(window.location.href))
 
         setTimeout(window.close, store.interval)
       })
       .catch((err) => {
+        toast('抽奖失败')
         console.log('抽奖失败', err)
 
         setTimeout(window.close, store.interval)
@@ -536,6 +537,7 @@ function setupOpus() {
   function checkLiked() {
     return new Promise((resolve, reject) => {
       if (document.querySelector('.side-toolbar__action.like.is-active') != null) {
+        toast('已点赞，即将关闭页面')
         reject(new Error('已点赞，即将关闭页面'))
       }
       resolve('ok')
@@ -545,6 +547,7 @@ function setupOpus() {
   // 触发点赞按钮
   function triggerLikeButton() {
     document.querySelector('.side-toolbar__action.like').click()
+    toast('点赞成功')
   }
 
   // 获取 UP主 id
@@ -570,11 +573,11 @@ function setupOpus() {
       method: 'POST',
     })
       .then(() => {
-        console.log('[followUpper] 关注 UP主 成功')
+        toast('关注 UP主 成功')
         return upperId
       })
       .catch((err) => {
-        console.log('[followUpper] 关注 UP主 失败')
+        toast('关注 UP主 失败')
         throw err
       })
   }
@@ -620,9 +623,10 @@ function setupOpus() {
     emojiButton.click()
 
     const cheerEmoji = await waitSelector('.bili-emoji__list__item.small:nth-child(14)')
-    cheerEmoji().click()
+    cheerEmoji.click()
     await sleep(500)
-    cheerEmoji().click()
+    cheerEmoji.click()
+    toast('输入表情成功')
   }
 
   // 触发发布按钮
@@ -631,6 +635,7 @@ function setupOpus() {
     publishButton.click()
 
     await waitSelector('.bili-dyn-share__done')
+    toast('发布成功')
   }
 }
 
