@@ -108,7 +108,7 @@ function when(conditionFn, wait = 250, maxWait = 30000) {
 }
 
 // 等待元素出现，返回元素
-function waitElement(selector, wait = 250, maxWait = 30000) {
+function waitSelector(selector, wait = 250, maxWait = 30000) {
   let time = 0
   return new Promise((resolve, reject) => {
     ;(function check() {
@@ -219,7 +219,7 @@ function setupIndex() {
       '抽'
     )
 
-    waitElement('.palette-button-wrap').then((el) => {
+    waitSelector('.palette-button-wrap').then((el) => {
       el.appendChild(button)
     })
   })()
@@ -341,7 +341,7 @@ function setupReadCV() {
   }
 
   function start() {
-    when(() => !!document.querySelector('.side-toolbar')).then(() => {
+    waitSelector('.side-toolbar').then(() => {
       addStyle()
       initLotteryButton()
       markLotteryLink()
@@ -501,7 +501,7 @@ function setupOpus() {
       return
     }
 
-    when(() => !!document.querySelector('.side-toolbar__action.like')) // 页面加载完成
+    waitSelector('.side-toolbar__action.like') // 页面加载完成
       .then(checkLiked) // 检查是否已点赞
       .then(() => sleep(store.stepInterval))
       .then(triggerLikeButton) // 触发点赞按钮
@@ -512,8 +512,8 @@ function setupOpus() {
       // .then(addUpperToGroup) // 添加 UP主到抽奖分组
       .then(() => sleep(store.stepInterval))
       .then(triggerForwardButton) // 触发转发按钮
-      .then(() => sleep(store.stepInterval))
-      .then(pasteForwardComment) // 粘贴转发评论
+      // .then(() => sleep(store.stepInterval))
+      // .then(pasteForwardComment) // 粘贴转发评论
       .then(() => sleep(store.stepInterval))
       .then(triggerEmojiButton) // 触发表情按钮
       .then(() => sleep(store.stepInterval))
@@ -596,7 +596,7 @@ function setupOpus() {
   // 触发转发按钮
   async function triggerForwardButton() {
     document.querySelector('.side-toolbar__action.forward').click()
-    await when(() => !!document.querySelector('.bili-rich-textarea__inner'))
+    await waitSelector('.bili-rich-textarea__inner')
   }
 
   // 粘贴转发评论内容
@@ -619,11 +619,10 @@ function setupOpus() {
     const emojiButton = document.querySelector('.bili-dyn-share-publishing__tools__item.emoji')
     emojiButton.click()
 
-    const getCheerEmoji = () => document.querySelectorAll('.bili-emoji__list__item.small')[13]
-    await when(() => !!getCheerEmoji())
-    getCheerEmoji().click()
+    const cheerEmoji = await waitSelector('.bili-emoji__list__item.small:nth-child(14)')
+    cheerEmoji().click()
     await sleep(500)
-    getCheerEmoji().click()
+    cheerEmoji().click()
   }
 
   // 触发发布按钮
@@ -631,7 +630,7 @@ function setupOpus() {
     const publishButton = document.querySelector('.bili-dyn-share-publishing__action.launcher')
     publishButton.click()
 
-    await when(() => !!document.querySelector('.bili-dyn-share__done'))
+    await waitSelector('.bili-dyn-share__done')
   }
 }
 
@@ -648,7 +647,7 @@ async function setupSpace() {
   }
 
   function getUserId() {
-    return waitElement('.header-avatar-wrap--container .header-entry-mini').then((el) => {
+    return waitSelector('.header-avatar-wrap--container .header-entry-mini').then((el) => {
       const link = el.href
       const matches = link.match(/\d+/g)
       return matches ? matches[0] : undefined
@@ -703,9 +702,9 @@ async function setupSpace() {
 
   async function deleteDynamic() {
     // 官方互动抽奖动态列表
-    const lotteryDynamicList = Array.from(document.querySelectorAll('.bili-dyn-list__item')).filter(
-      (item) => item.querySelector('.bili-dyn-content__orig.reference .bili-rich-text-module.lottery') != null
-    )
+    const lotteryDynamicList = Array.from(document.querySelectorAll('.bili-dyn-list__item'))
+      .filter((item) => item.querySelector('.bili-dyn-content__orig.reference .bili-rich-text-module.lottery') != null)
+      .reverse()
 
     toast(`共有 ${lotteryDynamicList.length} 条动态`)
     await sleep(500)
@@ -720,9 +719,8 @@ async function setupSpace() {
       const lottery = item.querySelector('.bili-dyn-content__orig.reference .bili-rich-text-module.lottery')
       lottery.click()
 
-      // 等待弹窗加载完成
+      // 等待互动抽奖详情弹窗打开，抽奖结果展示出来
       await when(() => !!document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.result-list'))
-      console.log('弹窗加载完成', document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.result-list'))
       await sleep(500)
 
       const hasWinner = document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.prize-winner-block')
@@ -741,9 +739,7 @@ async function setupSpace() {
       }
 
       const popupCloseButton = document.querySelector('.bili-popup__header__close')
-      console.log('关闭按钮', popupCloseButton)
       popupCloseButton.click()
-      // await sleep(500)
       document.body.removeChild(document.querySelector('.bili-popup'))
 
       // 未开奖，跳过
@@ -757,34 +753,32 @@ async function setupSpace() {
         continue
       }
 
-      // 取关UP主，触发鼠标移入事件
+      // 取关UP主，触发鼠标移入事件，展示UP主信息弹窗
       const upper = item.querySelector('.dyn-orig-author__name')
       upper.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
       upper.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
 
       // UP主信息弹窗展示
       await when(() => document.querySelector('.bili-user-profile')?.style?.display === '')
-      // await sleep(500)
 
       const followButton = document.querySelector('.bili-user-profile-view__info__button.follow') // 关注按钮
       if (followButton.classList.contains('checked')) {
         // 已关注，取消关注
         followButton.click()
+
+        toast(`[${index + 1}/${lotteryDynamicList.length}] UP主已取关`)
       }
-      document.querySelector('.bili-user-profile').style.display = 'none'
-      toast(`[${index + 1}/${lotteryDynamicList.length}] UP主已取关`)
-      // await sleep(500)
+
+      // 触发关闭UP主信息弹窗
+      upper.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
 
       // 删除动态
       const deleteButton = item.querySelector('[data-type="THREE_POINT_DELETE"]')
       deleteButton.click()
-      // await sleep(500)
 
-      await when(() => !!document.querySelector('.bili-modal__button.confirm'))
-      // await sleep(500)
-
-      const confirmButton = document.querySelector('.bili-modal__button.confirm')
+      const confirmButton = await waitSelector('.bili-modal__button.confirm')
       confirmButton.click()
+
       toast(`[${index + 1}/${lotteryDynamicList.length}] 删除动态成功`)
       await sleep(500)
 
