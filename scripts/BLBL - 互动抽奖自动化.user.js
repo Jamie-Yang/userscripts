@@ -52,7 +52,11 @@ const store = (function Store() {
   // 设置项
   const settings = {
     auto: false, // 自动抽奖
+    autoStep1Status: 'pending', // pending, success, error 自动抽奖步骤1（打开个人动态，删除已开奖转发动态）状态
+    autoStep2Status: 'pending', // pending, success, error 自动抽奖步骤2（打开专栏页，手动勾选、自动关注转发）状态
+    autoStep3Status: 'pending', // pending, success, error 自动抽奖步骤3状态
     collectorId: '5536630', // 归纳整理抽奖专栏的UP主id
+    userId: '', // 登录账户id
     interval: 500, // 抽奖间隔时间
     stepInterval: 500, // 步骤间隔时间
   }
@@ -81,8 +85,9 @@ const store = (function Store() {
   })
 })()
 
+// store.auto = false
 ;(async function run() {
-  if (window.location.href === 'https://www.bilibili.com/') {
+  if (window.location.pathname === '/') {
     setupIndex()
   } else if (window.location.href.startsWith('https://www.bilibili.com/read/cv')) {
     setupReadCV()
@@ -227,8 +232,19 @@ function setupIndex() {
   function startAutoLottery() {
     store.auto = true
 
+    // 监听页面可见性
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     // 跳转个人空间动态页，删除之前抽奖转发动态
     window.open(`https://space.bilibili.com/${getUserId()}/dynamic`, '_blank')
+  }
+
+  function handleVisibilityChange() {
+    if (document.visibilityState === 'visible' && store.auto) {
+      if (store.autoStep1Status === 'success') {
+        window.open(`https://space.bilibili.com/${store.collectorId}/article`, '_blank')
+      }
+    }
   }
 
   function getUserId() {
@@ -648,6 +664,7 @@ async function setupSpace() {
 
   // 自动执行流程
   if (store.auto) {
+    store.autoStep1Status = 'pending'
     start()
   }
 
@@ -798,6 +815,7 @@ async function setupSpace() {
 
   function handleFinish() {
     if (store.auto) {
+      store.autoStep1Status = 'success'
       window.close()
     }
   }
