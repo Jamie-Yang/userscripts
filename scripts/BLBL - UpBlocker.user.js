@@ -43,22 +43,30 @@ const store = (function Store() {
 
 ;(function start() {
   if (window.location.href.startsWith('https://www.bilibili.com/v/popular/all')) {
-    setupPopularAll()
+    const config = {
+      listSelector: '.card-list',
+      cardClassName: 'video-card',
+      upNameSelector: '.up-name__text',
+      imageWrapperSelector: '.video-card__content',
+      buttonSelector: '.up-blocker-button',
+      buttonClassName: 'up-blocker-button',
+    }
+    setup(config)
   }
 })()
 
-function setupPopularAll() {
+function setup(config) {
   console.log('[BLBL-UP-BLOCKER] 当前屏蔽列表：', store.blocked.toString())
   addCss()
   listenCardListLoaded()
 
   // 监听视频列表加载
   async function listenCardListLoaded() {
-    const cardList = await waitSelector('.card-list')
+    const cardList = await waitSelector(config.listSelector)
 
     const process = (list) => {
       ;[].forEach.call(list, (card) => {
-        if (!card.classList.contains('video-card')) return
+        if (!card?.classList?.contains?.(config.cardClassName)) return
 
         checkBlock(card)
         addButton(card)
@@ -70,7 +78,8 @@ function setupPopularAll() {
 
   // 屏蔽指定 UP 主视频
   function checkBlock(card) {
-    const upName = card.querySelector('.up-name__text').innerText
+    console.log('[BLBL-UP-BLOCKER] 检查视频', card)
+    const upName = card.querySelector(config.upNameSelector).innerText
     if (store.blocked.includes(upName)) {
       doHide(card)
     }
@@ -78,14 +87,15 @@ function setupPopularAll() {
 
   // 增加屏蔽按钮
   function addButton(card) {
-    const container = card.querySelector('.video-card__content')
-    if (container.querySelector('.up-blocker-button')) return
+    const container = card.querySelector(config.imageWrapperSelector)
+    if (container.querySelector(config.buttonSelector)) return
 
-    const upName = card.querySelector('.up-name__text').innerText
+    const upName = card.querySelector(config.upNameSelector).innerText
     const isBlocked = store.blocked.includes(upName)
 
-    const blockButton = createElement('button', { className: 'up-blocker-button', style: { display: 'none' } }, isBlocked ? 'Unblock' : 'Block')
-    blockButton.addEventListener('click', () => {
+    const blockButton = createElement('button', { className: config.buttonClassName, style: { display: 'none' } }, isBlocked ? 'Unblock' : 'Block')
+    blockButton.addEventListener('click', (e) => {
+      e.stopPropagation()
       if (blockButton.innerText === 'Block') {
         doBlock(card)
       } else {
@@ -106,7 +116,7 @@ function setupPopularAll() {
 
   // 执行屏蔽
   function doBlock(card) {
-    const upName = card.querySelector('.up-name__text').innerText
+    const upName = card.querySelector(config.upNameSelector).innerText
     if (store.blocked.includes(upName)) return
 
     store.blocked = [...store.blocked, upName]
@@ -115,7 +125,7 @@ function setupPopularAll() {
 
   // 执行取消屏蔽
   function doUnblock(card) {
-    const upName = card.querySelector('.up-name__text').innerText
+    const upName = card.querySelector(config.upNameSelector).innerText
     if (!store.blocked.includes(upName)) return
 
     store.blocked = store.blocked.filter((name) => name !== upName)
