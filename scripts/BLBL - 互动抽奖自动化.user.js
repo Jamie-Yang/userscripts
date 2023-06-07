@@ -65,6 +65,7 @@ const store = (function Store() {
   const shared = {
     dynamicId: undefined, // 当前处理动态id
     followGroupId: undefined, // 抽奖关注分组
+    checkingLottery: '', // 跨域检查的抽奖动态是否开奖 start-开始检查, yes-已开奖, no-未开奖, winning-中奖
   }
 
   const current = { ...settings, ...shared, ...GM_getValue(name) }
@@ -72,7 +73,7 @@ const store = (function Store() {
   return new Proxy(current, {
     set(target, key, value) {
       if (!(key in current)) {
-        throw new Error(`[store] 未知设置项 "${key}"`)
+        throw new Error(`[store] 写入未知设置项 "${key}"`)
       }
       target[key] = value
       GM_setValue(name, target)
@@ -80,7 +81,10 @@ const store = (function Store() {
     },
 
     get(target, key) {
-      return target[key]
+      if (!(key in current)) {
+        throw new Error(`[store] 读取未知设置项 "${key}"`)
+      }
+      return GM_getValue(name)[key]
     },
   })
 })()
@@ -95,6 +99,8 @@ const store = (function Store() {
     setupOpus()
   } else if (window.location.href.startsWith('https://space.bilibili.com/')) {
     setupSpace()
+  } else if (window.location.href.startsWith('https://t.bilibili.com/lottery')) {
+    setupLottery()
   }
 })()
 
@@ -741,37 +747,29 @@ async function setupSpace() {
       const lottery = item.querySelector('.bili-dyn-content__orig.reference .bili-rich-text-module.lottery')
       lottery.click()
 
-      // 等待互动抽奖详情弹窗打开，抽奖结果展示出来
-      await when(() => !!document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.result-list'))
-      await sleep(500)
-
-      const hasWinner = document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelector('.prize-winner-block')
-      toast(`[${index + 1}/${lotteryDynamicList.length}] ${hasWinner ? '已开奖' : '未开奖，跳过'}`)
-
-      if (hasWinner) {
-        const userName = document.querySelector('#h-name').innerText
-        const usernameList = document.querySelector('.bili-popup__content__browser')?.contentDocument?.querySelectorAll('.result-user .user-name')
-        const isWinner = !![].find.call(usernameList, (el) => el.innerText === userName)
-        console.log('是否中奖', isWinner)
-
-        if (isWinner) {
-          toast('🎉🎉🎉🎉🎉🎉🎉🎉 恭喜你中奖了')
-          continue
-        }
+      const result = await getLotteryResult()
+      if (result === 'winner') {
+        toast('🎉🎉🎉🎉🎉🎉🎉🎉 恭喜你中奖了')
+        continue
+      } else if (result === 'no') {
+        toast(`[${index + 1}/${lotteryDynamicList.length}] 未开奖，跳过`)
+      } else if (result === 'yse') {
+        toast(`[${index + 1}/${lotteryDynamicList.length}] 已开奖`)
       }
+      await sleep(500)
 
       const popupCloseButton = document.querySelector('.bili-popup__header__close')
       popupCloseButton.click()
       document.body.removeChild(document.querySelector('.bili-popup'))
 
       // 未开奖，跳过
-      if (!hasWinner) {
+      if (result === 'no') {
         if (index === lotteryDynamicList.length - 1) {
           toast('检查开奖完成 ✅')
           await sleep(1000)
           handleFinish()
         }
-        await sleep(500)
+        await sleep(800)
         continue
       }
 
@@ -820,8 +818,42 @@ async function setupSpace() {
     }
   }
 
+  async function getLotteryResult() {
+    toast('开始跨域检查开奖')
+    store.checkingLottery = 'start'
+    await when(() => store.checkingLottery !== 'start')
+    return store.checkingLottery
+  }
+
   addStyle()
   initButton()
+}
+
+async function setupLottery() {
+  if (store.checkingLottery !== 'start') return
+
+  // 等待互动抽奖详情弹窗打开，抽奖结果展示出来
+  await when(() => !!document.querySelector('.result-list'))
+  await sleep(500)
+
+  const hasWinner = document.querySelector('.prize-winner-block')
+  toast(`${hasWinner ? '已开奖' : '未开奖'}`)
+
+  if (hasWinner) {
+    const userName = document.querySelector('#h-name').innerText
+    const usernameList = document.querySelectorAll('.result-user .user-name')
+    const isWinner = !![].find.call(usernameList, (el) => el.innerText === userName)
+
+    if (isWinner) {
+      toast('🎉🎉🎉🎉🎉🎉🎉🎉 恭喜你中奖了')
+      store.checkingLottery = 'winner'
+    } else {
+      store.checkingLottery = 'yes'
+    }
+  } else {
+    store.checkingLottery = 'no'
+  }
+  console.log('store.checkingLottery 已设置', store.checkingLottery)
 }
 
 ;(function addCommonStyle() {
