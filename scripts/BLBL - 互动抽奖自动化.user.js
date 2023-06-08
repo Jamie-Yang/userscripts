@@ -66,6 +66,7 @@ const store = (function Store() {
     dynamicId: undefined, // 当前处理动态id
     followGroupId: undefined, // 抽奖关注分组
     checkingLottery: '', // 跨域检查的抽奖动态是否开奖 start-开始检查, yes-已开奖, no-未开奖, winning-中奖
+    userName: '', // 登录账户名称
   }
 
   const current = { ...settings, ...shared, ...GM_getValue(name) }
@@ -821,6 +822,7 @@ async function setupSpace() {
   async function getLotteryResult() {
     toast('开始跨域检查开奖')
     store.checkingLottery = 'start'
+    store.userName = document.querySelector('#h-name').innerText
     await when(() => store.checkingLottery !== 'start')
     return store.checkingLottery
   }
@@ -840,7 +842,7 @@ async function setupLottery() {
   toast(`${hasWinner ? '已开奖' : '未开奖'}`)
 
   if (hasWinner) {
-    const userName = document.querySelector('#h-name').innerText
+    const { userName } = store
     const usernameList = document.querySelectorAll('.result-user .user-name')
     const isWinner = !![].find.call(usernameList, (el) => el.innerText === userName)
 
