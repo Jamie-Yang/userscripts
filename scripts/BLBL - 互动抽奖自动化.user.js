@@ -600,6 +600,10 @@ function setupOpus() {
         return upperId
       })
       .catch((err) => {
+        if (err?.code === 22014) {
+          toast('关注 UP主 已关注')
+          return upperId
+        }
         toast('关注 UP主 失败')
         throw err
       })
@@ -755,7 +759,7 @@ async function setupSpace() {
       } else if (result === 'no') {
         toast(`[${index + 1}/${lotteryDynamicList.length}] 未开奖，跳过`)
       } else if (result === 'yse') {
-        toast(`[${index + 1}/${lotteryDynamicList.length}] 已开奖`)
+        toast(`[${index + 1}/${lotteryDynamicList.length}] 已开奖，未中奖，跳过`)
       }
       await sleep(500)
 
